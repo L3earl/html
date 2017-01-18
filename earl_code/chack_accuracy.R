@@ -1,11 +1,3 @@
-# 사용되는 패키지들, 한번만 설치하면 됨
-install.packages('doParallel')
-install.packages('foreach')
-install.packages('foreign')     # sas에서 만든 sav 파일 import 가능, foreign 라이브러리
-install.packages('itertools')
-install.packages('data.table')
-install.packages('rio')         # sav 파일로 export 가능, rio 라이브러리
-install.packages("dplyr")
 
 # 사용되는 라이브러리들
 library(doParallel)
@@ -19,20 +11,23 @@ library(dplyr)
 # 작업폴더 지정
 setwd("F:/googledrive/L.point 빅데이터/scenario")
 
+# 시나리오 넘버와 폴더 지정해 놓음
+scenarioNum <- 1
+dir.location <- sprintf("s_%03d", scenarioNum)
+
 # 선호도 matrix를 import하여 list로 반환
 read.prefer.matrix <- function(scenarioNum){
-  dir.location <- sprintf("s_%03d/data/", scenarioNum)
   clust.names <- dir(dir.location, pattern = "UserDistpurchaseSparse")
-  clust.list <- lapply(paste(dir.location, clust.names, sep = ""), read.spss
+  clust.list <- lapply(paste0(dir.location, "/", clust.names), read.spss
                        , to.data.frame = TRUE)
   return(clust.list)
 }
 
-preference <- read.prefer.matrix(1)
+preference <- read.prefer.matrix(scenarioNum)
 
 
 # 선호도 매트릭스에서 user별 max좌표 뽑아서, 추천 아이템 좌표 매트릭스를 만듬
-max.search <- function(x, max.number = 5){  
+max.search <- function(x, max.number = 3){  
   # 함수 내에서 쓸 dataframe을 선언해 놓음
   axis.dtfm <- data.frame(matrix(0, ncol = max.number, nrow = 1))
   value.dtfm <- data.frame(matrix(0, ncol = max.number, nrow = 1))  
@@ -51,12 +46,9 @@ max.search <- function(x, max.number = 5){
         }
       # max 좌표max.number개와 값 max.number개를 cbind 한다. 
       fusion.dtfm <- data.frame(cbind(axis.dtfm[1,],value.dtfm[1,]))
-      # setnames(fusion.dtfm, c(sprintf("item%01d", 1:5),sprintf("max.value%01d", 1:5)))
-      return(fusion.dtfm) #오류 가능성 있음
+      return(fusion.dtfm) 
     }
   }
-  # 반환할 final 컬럼명 변경  
-  # names(fit.item.list) <- c(1:length(x))
   return(fit.item.list)
 }
 
@@ -69,7 +61,7 @@ system.time({
   getDoParWorkers()
   
   # row별로 max의 위치와 값을 max.number 개수만큼 뽑아냄
-  recommend.item.axis <- max.search(preference, 5)
+  recommend.item.axis <- max.search(preference, 3)
   
   # cluster stop
   stopCluster(cl)
@@ -77,6 +69,12 @@ system.time({
 
 
 # sav 파일로 export
+for(i in 1:length(recommend.item.axis)){
+  paste0('export(recommend.item.axis[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+         , dir.location, '/data/recommendItemAxis', i, '.sav")')
+  eval(parse(text=textOrder))
+}
+
 export(recommend.item.axis[[1]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis1.sav")
 export(recommend.item.axis[[2]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis2.sav")
 export(recommend.item.axis[[3]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis3.sav")
@@ -89,9 +87,9 @@ read.test.data <- function(scenarioNum){
   return(purchase.list)
 }
 
-purchase <- read.test.data(1)
+purchase <- read.test.data(scenarioNum)
 
-
+# Test기간동안의 추천 아이템의 좌표를 구매 희소 행렬에서 찾아서 1의 개수를 반환하는 루틴을 모든 유저만큼 반복
 check.accuracy <- function(recommend, purchase, max.number = 3){
   temp.dtfm <- data.frame(matrix(NA, ncol = 1, nrow = 1))
   x <- 0
@@ -111,6 +109,13 @@ check.accuracy <- function(recommend, purchase, max.number = 3){
   return(accuracy)
 }
 
+temp.dtfm <- c(0:100)
+unique(0)
+for(i in 1:3){
+  temp.dtfm[1,1] <- i
+  print(temp.dtfm)
+}
+
 # 함수 실행
 system.time({
   
@@ -119,14 +124,14 @@ system.time({
   registerDoParallel(cl)
   getDoParWorkers()
   
-  # row별로 max의 위치와 값을 max.number 개수만큼 뽑아냄
+  # 
   final <- check.accuracy(recommend.item.axis, purchase)
   
   # cluster stop
   stopCluster(cl)
 })
 
-# 검증
+# 검증1
 for(i in 1:length(final)){
   na.number <- 0
   na.number <- sum(is.na(final[[i]])) + na.number
@@ -145,6 +150,12 @@ temp <- sum(final[[1]],final[[2]],final[[3]])
 accuracy <- temp/sum(nrow(final[[1]]),nrow(final[[2]]),nrow(final[[3]]))/3*100
 print(accuracy)
 
+# sav 파일로 export
+for(i in 1:length(final)){
+  paste0('export(final[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+         , dir.location, '/data/result', i, '.sav")')
+  eval(parse(text=textOrder))
+}
 
 export(final[[1]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/result1.sav")
 export(final[[2]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/result2.sav")

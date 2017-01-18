@@ -1,25 +1,32 @@
 
 # 라이브러리
-library(rio) #import, export
-library(gdata) #unmatrix
-library(dplyr) #filter
+library(rio) 
+library(gdata) 
+library(dplyr) 
 library(data.table)
 library(foreach)
 library(doParallel)
+
+# 시나리오 넘버와 폴더 지정해 놓음
+scenarioNum <- 1
+dir.location <- sprintf("s_%03d", scenarioNum)
+
+# 기간 개수 입력
+periodNum <- 3 
+
 
 # import multi user Id matrix by scenario
 setwd("F:/googledrive/L.point 빅데이터/scenario")
 
 read.clust <- function(scenarioNum){
-  dir.location <- sprintf("s_%03d/", scenarioNum)
   clust.names <- dir(dir.location, pattern = "clust")
-  clust.list <- lapply(paste(dir.location, clust.names, sep = ""), import)
+  clust.list <- lapply(paste0(dir.location, "/", clust.names), import)
   return(clust.list)
 }
 
-clust.userID.list <- read.clust(1)
+clust.userID.list <- read.clust(senarioNum)  
 
-# import product id, make character vector
+# import product id, make character vector (아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함)
 product.category3 <- import("F:/googledrive/L.point 빅데이터/scenario/common/productCategory3.sav")
 product <- as.character(unmatrix(product.category3, byrow = TRUE))
 
@@ -32,19 +39,21 @@ make.frame <- function(u_id, p_id) {
 
 purchase.matrix.frame <- lapply(clust.userID.list, make.frame, p_id = product)
 
-# afrter make frame, remove productID from RAM
+# 다 쓴 내용 정리
 remove(product.category3)
 remove(product)
 
 # import purchase data
 sorted.receipt <- import("F:/googledrive/L.point 빅데이터/scenario/common/sortedreceipt.sav")
 
-# saperate purchase data as each period
+# saperate purchase data as each period (기간이 바뀔때마다 변경되는 부분)
 receipt.period.1 <- distinct(filter(sorted.receipt[,c(1,2)]))
 receipt.period.2 <- distinct(filter(sorted.receipt[,c(1,2)]
                                     , sorted.receipt[,3] > 20150131 | sorted.receipt[,3] < 20150101))
 receipt.period.3 <- distinct(filter(sorted.receipt[,c(1,2)]
                                     , sorted.receipt[,3] > 20141231 & sorted.receipt[,3] < 20150201))
+
+# 다 쓴 내용 정리
 remove(sorted.receipt)
 
 # merge clust UserId amd receipt each period
@@ -53,18 +62,11 @@ merge.receipt.clust <- function(clust, receipt){
   return(temp)
 }
 
-receipt.clust.1 <- lapply(clust.userID.list, merge.receipt.clust
-                          , receipt = receipt.period.1)
-
-receipt.clust.2 <- lapply(clust.userID.list, merge.receipt.clust
-                          , receipt = receipt.period.2)
-
-receipt.clust.3 <- lapply(clust.userID.list, merge.receipt.clust
-                          , receipt = receipt.period.3)
-
-remove(receipt.period.1)
-remove(receipt.period.2)
-remove(receipt.period.3)
+for(i in 1:periodNum){  # 오류 가능성 있음
+  assign(paste0("receipt.clust.", i), lapply(clust.userID.list, merge.receipt.clust
+                                                     , receipt = sprintf("receipt.period.", i)))
+  remove(list = paste0("receipt.period.",i))
+}
 
 # make sparse matrix
 make.sparse <- function(p_frame, r_clust) { 
@@ -86,20 +88,30 @@ system.time({
   getDoParWorkers()
   
   # make sparse list
-  purchase.sparse.1 <- make.sparse(purchase.matrix.frame, receipt.clust.1)
-  purchase.sparse.2 <- make.sparse(purchase.matrix.frame, receipt.clust.2)
-  purchase.sparse.3 <- make.sparse(purchase.matrix.frame, receipt.clust.3)
+  for(i in 1:periodNum){  # 오류 가능성 있음
+    assign(paste0("purchase.sparse.", i), make.sparse(purchase.matrix.frame, sprintf("receipt.clust.", i)))
+    remove(list = paste0("receipt.clust.",i))
+  }
   
   # cluster stop
   stopCluster(cl)
 })
 
-remove(receipt.clust.1)
-remove(receipt.clust.2)
-remove(receipt.clust.3)
+# SAS에서 자카드 계산을 하기 위해 list인 purchase.sparse를 매트릭스로 분할하여 내보내며, colname도 변경
+temp.colname <- sprintf("COL%1d", 1:4386)
 
-# export sparse matrix of purchase.sparse
-temp1.1 <- purchase.sparse.1[[1]]
+for(i in 1:periodNum){ #안되면, par eval 방법론을 써야 할 듯
+  for(j in 1:length(purchase.sparse.1)){
+    assign(colnames(paste0("purchase.sparse.", i, "[[", j, "]]")), temp.colname)
+    paste0('export(purchase.sparse', i, '[[', j, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+           , dir.location, '/data/purchaseSqarse', i, '_', j, '.sav")')
+    eval(parse(text=textOrder))
+  }
+  remove(list = paste0("purchase.sparse.",i))
+}
+
+
+temp1.1 <- colnames(purchase.sparse.1[[1]]) <- temp.colname
 temp1.2 <- purchase.sparse.1[[2]]
 temp1.3 <- purchase.sparse.1[[3]]
 temp2.1 <- purchase.sparse.2[[1]]
@@ -109,7 +121,7 @@ temp3.1 <- purchase.sparse.3[[1]]
 temp3.2 <- purchase.sparse.3[[2]]
 temp3.3 <- purchase.sparse.3[[3]]
 
-temp.name <- sprintf("COL%1d", 1:4386)
+temp.colname <- sprintf("COL%1d", 1:4386)
 colnames(temp1.1) <- temp.name
 colnames(temp1.2) <- temp.name
 colnames(temp1.3) <- temp.name
