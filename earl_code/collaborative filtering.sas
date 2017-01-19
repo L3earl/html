@@ -59,7 +59,13 @@
 	RUN;
 %MEND;
 
-/* 시나리오 1 , 군집 3 */
-%PuchseClstrPrferMACRO(s_001, purchaseSparse1_2, purchaseSparse2_1);
-%PuchseClstrPrferMACRO(s_001, purchaseSparse1_2, purchaseSparse2_2);
-%PuchseClstrPrferMACRO(s_001, purchaseSparse1_3, purchaseSparse2_3);
+/* 반복적인 파일 생성 */
+%MACRO PrferMacroRepeat(scenario, clusterNum); 
+	%DO i = 1 %TO &clusterNum;
+			%PuchseClstrPrferMACRO(&scenario, purchaseSparse1._&i, purchaseSparse2._&i);
+	%END;
+%MEND;
+
+/* 최종 실행 문장, (시나리오 폴더명, 군집 개수)를 넣고 실행하면 됨 */
+%PrferMacroRepeat(s_002, 4);
+

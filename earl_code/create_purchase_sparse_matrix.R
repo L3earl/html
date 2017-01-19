@@ -8,12 +8,14 @@ library(foreach)
 library(doParallel)
 
 # 시나리오 넘버와 폴더 지정해 놓음
-scenarioNum <- 1
+scenarioNum <- 2
 dir.location <- sprintf("s_%03d", scenarioNum)
 
 # 기간 개수 입력
-periodNum <- 3 
+periodNum <- 3
 
+# 일할 cpu worker개수 입력
+cpu.Num <- 4
 
 # import multi user Id matrix by scenario
 setwd("F:/googledrive/L.point 빅데이터/scenario")
@@ -25,6 +27,7 @@ read.clust <- function(scenarioNum){
 }
 
 clust.userID.list <- read.clust(senarioNum)  
+user.clust.num <- length(clust.userID.list)
 
 # import product id, make character vector (아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함)
 product.category3 <- import("F:/googledrive/L.point 빅데이터/scenario/common/productCategory3.sav")
@@ -58,13 +61,13 @@ remove(sorted.receipt)
 
 # merge clust UserId amd receipt each period
 merge.receipt.clust <- function(clust, receipt){
-  temp <- merge(clust, receipt, by = 'userID')
+  temp <- merge(clust, receipt, by = "userID")
   return(temp)
 }
 
-for(i in 1:periodNum){  # 오류 가능성 있음
+for(i in 1:periodNum){
   assign(paste0("receipt.clust.", i), lapply(clust.userID.list, merge.receipt.clust
-                                                     , receipt = sprintf("receipt.period.", i)))
+                                                     , receipt = eval(parse(text = paste0("receipt.period.", i)))))
   remove(list = paste0("receipt.period.",i))
 }
 
@@ -83,13 +86,14 @@ make.sparse <- function(p_frame, r_clust) {
 system.time({
   
   # 병렬 처리 cluster 4개 생성 및 등록
-  cl <- makeCluster(4)
+  cl <- makeCluster(cpu.Num)
   registerDoParallel(cl)
   getDoParWorkers()
   
   # make sparse list
-  for(i in 1:periodNum){  # 오류 가능성 있음
-    assign(paste0("purchase.sparse.", i), make.sparse(purchase.matrix.frame, sprintf("receipt.clust.", i)))
+  for(i in 1:periodNum){
+    assign(paste0("purchase.sparse.", i)
+           , make.sparse(purchase.matrix.frame, eval(parse(text = paste0("receipt.clust.", i)))))
     remove(list = paste0("receipt.clust.",i))
   }
   
@@ -100,44 +104,13 @@ system.time({
 # SAS에서 자카드 계산을 하기 위해 list인 purchase.sparse를 매트릭스로 분할하여 내보내며, colname도 변경
 temp.colname <- sprintf("COL%1d", 1:4386)
 
-for(i in 1:periodNum){ #안되면, par eval 방법론을 써야 할 듯
-  for(j in 1:length(purchase.sparse.1)){
-    assign(colnames(paste0("purchase.sparse.", i, "[[", j, "]]")), temp.colname)
-    paste0('export(purchase.sparse', i, '[[', j, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
-           , dir.location, '/data/purchaseSqarse', i, '_', j, '.sav")')
-    eval(parse(text=textOrder))
+for(i in 1:periodNum){ 
+  for(j in 1:user.clust.num){
+    temp.text <- paste0("colnames(purchase.sparse.", i, "[[", j, "]]) <- temp.colname")
+    eval(parse(text=temp.text))
+    temp.text <- paste0('export(purchase.sparse.', i, '[[', j, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+                        , dir.location, '/data/purchaseSparse', i, '_', j, '.sav")')
+    eval(parse(text=temp.text))
   }
-  remove(list = paste0("purchase.sparse.",i))
+  # remove(list = paste0("purchase.sparse.",i))
 }
-
-
-temp1.1 <- colnames(purchase.sparse.1[[1]]) <- temp.colname
-temp1.2 <- purchase.sparse.1[[2]]
-temp1.3 <- purchase.sparse.1[[3]]
-temp2.1 <- purchase.sparse.2[[1]]
-temp2.2 <- purchase.sparse.2[[2]]
-temp2.3 <- purchase.sparse.2[[3]]
-temp3.1 <- purchase.sparse.3[[1]]
-temp3.2 <- purchase.sparse.3[[2]]
-temp3.3 <- purchase.sparse.3[[3]]
-
-temp.colname <- sprintf("COL%1d", 1:4386)
-colnames(temp1.1) <- temp.name
-colnames(temp1.2) <- temp.name
-colnames(temp1.3) <- temp.name
-colnames(temp2.1) <- temp.name
-colnames(temp2.2) <- temp.name
-colnames(temp2.3) <- temp.name
-colnames(temp3.1) <- temp.name
-colnames(temp3.2) <- temp.name
-colnames(temp3.3) <- temp.name
-
-export(temp1.1, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse1_1.sav")
-export(temp1.2, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse1_2.sav")
-export(temp1.3, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse1_3.sav")
-export(temp2.1, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse2_1.sav")
-export(temp2.2, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse2_2.sav")
-export(temp2.3, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse2_3.sav")
-export(temp3.1, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse3_1.sav")
-export(temp3.2, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse3_2.sav")
-export(temp3.3, "F:/googledrive/L.point 빅데이터/scenario/s_001/data/purchaseSparse3_3.sav")

@@ -7,18 +7,22 @@ library(itertools)
 library(data.table)
 library(rio)
 library(dplyr)
+library(gdata)
 
 # 작업폴더 지정
 setwd("F:/googledrive/L.point 빅데이터/scenario")
 
 # 시나리오 넘버와 폴더 지정해 놓음
-scenarioNum <- 1
+scenarioNum <- 2
 dir.location <- sprintf("s_%03d", scenarioNum)
+
+# 일할 cpu worker개수 입력
+cpu.Num <- 4
 
 # 선호도 matrix를 import하여 list로 반환
 read.prefer.matrix <- function(scenarioNum){
-  clust.names <- dir(dir.location, pattern = "UserDistpurchaseSparse")
-  clust.list <- lapply(paste0(dir.location, "/", clust.names), read.spss
+  clust.names <- dir(paste0(dir.location, "/data/"), pattern = "UserDistpurchaseSparse")
+  clust.list <- lapply(paste0(dir.location, "/data/", clust.names), read.spss
                        , to.data.frame = TRUE)
   return(clust.list)
 }
@@ -56,9 +60,8 @@ max.search <- function(x, max.number = 3){
 system.time({
   
   # 병렬 처리 cluster 4개 생성 및 등록
-  cl <- makeCluster(4)
+  cl <- makeCluster(cpu.Num)
   registerDoParallel(cl)
-  getDoParWorkers()
   
   # row별로 max의 위치와 값을 max.number 개수만큼 뽑아냄
   recommend.item.axis <- max.search(preference, 3)
@@ -70,14 +73,10 @@ system.time({
 
 # sav 파일로 export
 for(i in 1:length(recommend.item.axis)){
-  paste0('export(recommend.item.axis[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
-         , dir.location, '/data/recommendItemAxis', i, '.sav")')
-  eval(parse(text=textOrder))
+  temp.text <- paste0('export(recommend.item.axis[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+                      , dir.location, '/result/recommendItemAxis', i, '.sav")')
+  eval(parse(text=temp.text))
 }
-
-export(recommend.item.axis[[1]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis1.sav")
-export(recommend.item.axis[[2]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis2.sav")
-export(recommend.item.axis[[3]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/recommendItemAxis3.sav")
 
 # 구매 희소 행렬을 import하여 list로 반환
 read.test.data <- function(scenarioNum){
@@ -92,35 +91,29 @@ purchase <- read.test.data(scenarioNum)
 # Test기간동안의 추천 아이템의 좌표를 구매 희소 행렬에서 찾아서 1의 개수를 반환하는 루틴을 모든 유저만큼 반복
 check.accuracy <- function(recommend, purchase, max.number = 3){
   temp.dtfm <- data.frame(matrix(NA, ncol = 1, nrow = 1))
-  x <- 0
+  x <- FALSE
   
   accuracy <- foreach(i = 1:length(recommend),.packages = c("foreach")) %dopar% {
     foreach(j = 1:nrow(recommend[[i]]),.combine="rbind",.packages=c("foreach")) %do% {
-      foreach(k = 1:max.number) %do% {
+      foreach(k = 1:max.number,.combine = "cbind") %do% {
         if(purchase[[i]][j,recommend[[i]][j,k]] == 1){
-          x <- x + 1
+          x <- TRUE
+        }else{
+          x <- FALSE
         }
+        temp.dtfm[1,1] <- x
+        return(temp.dtfm)
       }
-      temp.dtfm[1,1] <- x
-      x <- 0
-      return(temp.dtfm)
     }
   }
   return(accuracy)
-}
-
-temp.dtfm <- c(0:100)
-unique(0)
-for(i in 1:3){
-  temp.dtfm[1,1] <- i
-  print(temp.dtfm)
 }
 
 # 함수 실행
 system.time({
   
   # 병렬 처리 cluster 4개 생성 및 등록
-  cl <- makeCluster(4)
+  cl <- makeCluster(cpu.Num)
   registerDoParallel(cl)
   getDoParWorkers()
   
@@ -130,6 +123,26 @@ system.time({
   # cluster stop
   stopCluster(cl)
 })
+
+# import user ID clust
+read.clust <- function(scenarioNum){
+  clust.names <- dir(dir.location, pattern = "clust")
+  clust.list <- lapply(paste0(dir.location, "/", clust.names), import)
+  return(clust.list)
+}
+
+clust.userID.list <- read.clust(senarioNum)  
+
+# set userID as rownames in final
+for(i in 1:length(final)){
+  temp.text <- paste0("rownames(final[[", i, "]]) <- clust.userID.list[[", i, "]][,1]")
+  eval(parse(text = temp.text))
+  temp.text <- paste0("colnames(final[[", i, "]]) <- c(1:", length(final[[i]]), ")")
+  eval(parse(text = temp.text))
+}
+
+
+table(final[[1]][,1])["TRUE"]
 
 # 검증1
 for(i in 1:length(final)){
@@ -146,17 +159,10 @@ for(i in 1:length(final)){
   print(sum.mean)
 }
 
-temp <- sum(final[[1]],final[[2]],final[[3]])
-accuracy <- temp/sum(nrow(final[[1]]),nrow(final[[2]]),nrow(final[[3]]))/3*100
-print(accuracy)
 
 # sav 파일로 export
 for(i in 1:length(final)){
-  paste0('export(final[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
-         , dir.location, '/data/result', i, '.sav")')
-  eval(parse(text=textOrder))
+  temp.text <- paste0('export(final[[', i, ']],', '"F:/googledrive/L.point 빅데이터/scenario/'
+                      , dir.location, '/result/result', i, '.sav")')
+  eval(parse(text=temp.text))
 }
-
-export(final[[1]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/result1.sav")
-export(final[[2]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/result2.sav")
-export(final[[3]], "F:/googledrive/L.point 빅데이터/scenario/s_001/data/result3.sav")
