@@ -27,8 +27,8 @@ export(channal, "F:/googledrive/L.point 빅데이터/scenario/common/channal.sav
 
 
 # 상품 소분류 코드
-product.category3 <- product[,4]
-export(product.category3, "F:/googledrive/L.point 빅데이터/scenario/common/productCategory3.sav")
+product.category3.code <- product[,4]
+export(product.category3.code, "F:/googledrive/L.point 빅데이터/scenario/common/productCategory3Code.sav")
 
 # 구매 데이터에서 유저ID, 소분류코드, 날짜만 뽑아내어, 유저ID 오름차순으로 정렬
 temp <- filter(purchase[,c(6,5,8)])

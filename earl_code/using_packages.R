@@ -31,3 +31,6 @@ library(itertools)
 install.packages('gdata')
 library(gdata) 
 
+# % 쓰려고 사용
+install.packages("scales")
+library(scales)

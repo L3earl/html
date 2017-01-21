@@ -7,8 +7,11 @@ library(data.table)
 library(foreach)
 library(doParallel)
 
-# 시나리오 넘버와 폴더 지정해 놓음
-scenarioNum <- 2
+# 작업폴더 지정
+setwd("F:/googledrive/L.point 빅데이터/scenario")
+
+# 시나리오 넘버 지정 놓음
+scenarioNum <- 6
 dir.location <- sprintf("s_%03d", scenarioNum)
 
 # 기간 개수 입력
@@ -18,8 +21,6 @@ periodNum <- 3
 cpu.Num <- 4
 
 # import multi user Id matrix by scenario
-setwd("F:/googledrive/L.point 빅데이터/scenario")
-
 read.clust <- function(scenarioNum){
   clust.names <- dir(dir.location, pattern = "clust")
   clust.list <- lapply(paste0(dir.location, "/", clust.names), import)
@@ -30,7 +31,7 @@ clust.userID.list <- read.clust(senarioNum)
 user.clust.num <- length(clust.userID.list)
 
 # import product id, make character vector (아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함)
-product.category3 <- import("F:/googledrive/L.point 빅데이터/scenario/common/productCategory3.sav")
+product.category3 <- import("F:/googledrive/L.point 빅데이터/scenario/common/productCategory3code.sav")
 product <- as.character(unmatrix(product.category3, byrow = TRUE))
 
 # make frame of purchase matrix (list type)
@@ -73,8 +74,8 @@ for(i in 1:periodNum){
 
 # make sparse matrix
 make.sparse <- function(p_frame, r_clust) { 
-  result <- foreach(i = 1:length(p_frame)) %dopar% {
-    for(j in 1:nrow(r_clust[[i]])){
+  result <- foreach(i = 1:length(p_frame),.packages = c('foreach')) %dopar% {
+    for(j in 1:nrow(r_clust[[i]])){ 
       p_frame[[i]][as.character(r_clust[[i]][j,1]),r_clust[[i]][j,2]] <- 1
     }
     return(p_frame[[i]])
