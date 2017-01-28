@@ -1,7 +1,4 @@
 
-# rJava 패키지의 heap 공간을 늘려줘야 xlsx라이브러리를 사용 가능 -Xmx메모리크기m
-options(java.parameters = "-Xmx12000m")
-
 # 사용되는 라이브러리들
 library(doParallel)
 library(foreach)
@@ -12,23 +9,23 @@ library(rio)
 library(gdata)
 library(scales)
 library(dplyr)
-library(rJava)
+library(gtools)
 library(xlsx)
 
 # 뽑을 추천 아이템 개수 입력
 max.number <- 100
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 5
+scenarioNum <- 29
 
 # 작업 중간에 나오는 데이터가 저장된 폴더의 주소를 입력하세요
-dir.data <- 'F:/googledrive/temp/Lpoint/scenario'
+dir.data <- 'F:/temp/Lpoint/scenario'
 
 # scenario 폴더의 주소를 입력하세요. (이미 존재하는 걸 폴더의 주소를 입력해야 함)
 dir.lpoint <- 'F:/googledrive/L.point 빅데이터/scenario'
 
 # 일할 cpu worker개수 입력
-cpu.Num <- 3
+cpu.Num <- 4
 
 # 필요한 폴더를 생성합니다. (이미 있으면 경고만 나오고 끝남)
 dir.scenario <- sprintf("/s_%03d", scenarioNum)
@@ -37,15 +34,18 @@ dir.create(paste0(dir.lpoint, dir.scenario, '/result'))
 dir.data <- paste0(dir.data, dir.scenario)
 dir.result <- paste0(dir.lpoint, dir.scenario, '/result')
 
-# rJava 패키지의 garbage collection 기능
-java.garbege.collection <- function()
-{
-  .jcall("java/lang/System", method = "gc")
-}  
+# import user ID clust
+read.clust <- function(scenarioNum){
+  clust.names <- mixedsort(dir(paste0(dir.lpoint, dir.scenario), pattern = "clu"))
+  clust.list <- lapply(paste0(dir.lpoint, dir.scenario, "/", clust.names), import)
+  return(clust.list)
+}
+
+clust.userID.list <- read.clust(senarioNum)  
 
 # 선호도 matrix를 import하여 list로 반환
 read.prefer.matrix <- function(scenarioNum){
-  clust.names <- dir(dir.data, pattern = "UserDist")
+  clust.names <- mixedsort(dir(dir.data, pattern = "UserDist"))
   clust.list <- lapply(paste0(dir.data, '/', clust.names), read.spss, to.data.frame = TRUE)
   return(clust.list)
 }
@@ -65,6 +65,11 @@ max.axis.search <- function(prefer, max.number){
     
     foreach(j = 1:ncol(prefer[[i]]),.combine="rbind",.packages = c("dplyr")) %dopar% {
       temp2 <- select(temp, j, ncol(temp))
+      #if(sum(temp2[,1]) == 0){
+      #  for(k in 1:nrow(temp2)){
+      #    temp2[k,1] <- sum(prefer[[i]][k,])/ncol(prefer[[i]])
+      #  }
+      #}
       temp3 <- arrange(temp2, desc(temp2[,1]))
       temp4 <- temp3[c(1:max.number),2]
       return(temp4)
@@ -90,10 +95,16 @@ system.time({
 # 다 쓴 것 메모리에서 삭제
 remove(preference)
 
-# import product category3 name and code
+# import product category3 name and code 
 product <- fread("F:/googledrive/L.point 빅데이터/제3회 Big Data Competition-개인화상품추천/제3회 Big Data Competition-분석용데이터-03.상품분류.txt") 
-product.category3 <- filter(product[,c(4,6)])
+product.name.code <- filter(product[,c(4,6)])
+colnames(product.name.code) <- c('productCode', 'productName')
 remove(product)
+
+### import product category3 name and code 
+temp <- import(paste0(dir.lpoint, dir.scenario, '/product_1.csv'))
+colnames(temp) <- 'productCode'
+product.name.code <- merge(product.name.code, temp, by = "productCode")
 
 # 선호도 매트릭스에서 user별 max좌표 뽑아서, 추천 아이템 좌표 매트릭스를 만듬
 max.name.code.search <- function(itemAxis, product, max.number){  
@@ -121,18 +132,18 @@ system.time({
   registerDoParallel(cl)
   
   # row별로 max의 위치와 값을 max.number 개수만큼 뽑아냄
-  suggest.item <- max.name.code.search(recommend.item.axis, product.category3, max.number)
+  suggest.item <- max.name.code.search(recommend.item.axis, product.name.code, max.number)
   
   # cluster stop
   stopCluster(cl)
 })
 
 # 다 쓴 것 메모리에서 삭제
-remove(product.category3)
+remove(product.name.code)
 
 # 구매 희소 행렬을 import하여 list로 반환
 read.test.data <- function(scenarioNum){
-  purchase.name <- dir(dir.data, pattern = "purchaseSparse3")
+  purchase.name <- mixedsort(dir(dir.data, pattern = "purchaseSparse3"))
   purchase.list <- lapply(paste0(dir.data, '/' ,purchase.name), import)
   return(purchase.list)
 }
@@ -175,18 +186,6 @@ system.time({
   stopCluster(cl)
 })
 
-# 다 쓴 것 메모리에서 삭제
-remove(recommend.item.axis)
-remove(purchase)
-
-# import user ID clust
-read.clust <- function(scenarioNum){
-  clust.names <- dir(paste0(dir.lpoint, dir.scenario), pattern = "clust")
-  clust.list <- lapply(paste0(dir.lpoint, dir.scenario, "/", clust.names), import)
-  return(clust.list)
-}
-
-clust.userID.list <- read.clust(senarioNum)  
 
 # set userID as rownames
 for(i in 1:length(True.False)){
@@ -195,6 +194,10 @@ for(i in 1:length(True.False)){
   temp.text <- paste0('colnames(True.False[[', i, ']]) <- c(1:', length(True.False[[i]]), ')')
   eval(parse(text = temp.text))
 }
+
+# 다 쓴 것 메모리에서 삭제
+remove(recommend.item.axis)
+remove(purchase)
 
 # check recommend is right or wrong('x' is added in front of recommend item name)
 mark.recommend <- function(suggest, TorF, max.number){
@@ -230,9 +233,6 @@ system.time({
   stopCluster(cl)
 })
 
-# 다 쓴 것 메모리에서 삭제
-remove(suggest.item)
-
 # set userID as rownames
 for(i in 1:length(marking.recommend)){
   temp.text <- paste0("rownames(marking.recommend[[", i, "]]) <- clust.userID.list[[", i, "]][,1]")
@@ -240,6 +240,19 @@ for(i in 1:length(marking.recommend)){
   temp.text <- paste0('colnames(marking.recommend[[', i, ']]) <- c(1:', length(marking.recommend[[i]]), ')')
   eval(parse(text = temp.text))
 }
+
+# 유저별로 실제로 산 아이템과 안 산 아이템을 구별해주는 marking.recommend를 excel 파일로 export
+system.time({
+  for(i in 1:length(marking.recommend)){
+    temp.text <- paste0('export(marking.recommend[[', i, ']], "', dir.result, '/markingRecommend', i, '.csv"
+                        , col.names=TRUE, row.names=TRUE)')
+    eval(parse(text=temp.text))
+  }
+})
+
+# 다 쓴 것 메모리에서 삭제
+remove(suggest.item)
+remove(marking.recommend)
 
 # accuracy per recommended sequence by clust
 clust.accuracy <- function(TorF, max.number){
@@ -325,7 +338,6 @@ temp.text <- paste0('write.xlsx(clust.overall.accuracy, file="', dir.result, '/a
                       , ', sheetName= "overall", col.names=TRUE, row.names=TRUE, append=FALSE)')
 eval(parse(text=temp.text))
 remove(temp.text)
-java.garbege.collection()
 
 # 유저 전체에 대한 정확도를 판별
 user.accuracy <- function(overall, max.number){
@@ -359,31 +371,19 @@ eval(parse(text = temp.text))
 remove(temp.text)
 
 # excel 파일로 export
-system.time({
-  temp.text <- paste0('write.xlsx(user.accuracy, file="', dir.result, '/accuracy.xlsx"'
-                      , ', sheetName= "user", col.names=TRUE, row.names=TRUE, append=TRUE)')
-  eval(parse(text=temp.text))
-  remove(temp.text)
-  java.garbege.collection()
-})
+temp.text <- paste0('export(user.accuracy,"', dir.result, '/userAccuracy.csv", col.names=TRUE, row.names=TRUE)')
+eval(parse(text=temp.text))
+remove(temp.text)
+
+#system.time({
+#  temp.text <- paste0('write.xlsx(user.accuracy, file="', dir.result, '/accuracy.xlsx"'
+#                      , ', sheetName= "user", col.names=TRUE, row.names=TRUE, append=TRUE)')
+#  eval(parse(text=temp.text))
+#  remove(temp.text)
+#  java.garbege.collection()
+#})
 
 # 다 쓴 것 메모리에서 삭제
 remove(user.accuracy)
-
-# excel 로 export
-#temp.text <- paste0('export(user.accuracy,', dir.result, '/userAccuracy.csv", col.names=TRUE, row.names=FALSE)')
-#eval(parse(text=temp.text))
-#remove(temp.text)
-
-# 유저별로 실제로 산 아이템과 안 산 아이템을 구별해주는 marking.recommend를 excel 파일로 export
-system.time({
-  for(i in 1:length(marking.recommend)){
-    temp.text <- paste0('write.xlsx(marking.recommend[[', i, ']], file="', dir.result, '/accuracy.xlsx"'
-                        , ', sheetName= "item', i, '", col.names=TRUE, row.names=TRUE, append=TRUE)')
-    eval(parse(text=temp.text))
-    java.garbege.collection()
-  }
-})
-
-# 다 쓴 것 메모리에서 삭제
-remove(marking.recommend)
+rm(list = ls(all=TRUE))
+gc()

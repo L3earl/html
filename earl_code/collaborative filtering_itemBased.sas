@@ -2,12 +2,18 @@
 %MACRO PuchseClstrPrferMACRO(FOLDERNAME, CLUST, TRAINING, tempNum); 
 
 	/* cluster 구매행렬 불러오기 */
-	PROC IMPORT OUT = &CLUST
+	PROC IMPORT OUT = _&CLUST
 				DATAFILE = "&FOLDERNAME\&CLUST"
 				DBMS = SAV REPLACE;
 	RUN;
 
-	/* 유사도행렬 생성 */
+	/* 행렬 전치 , test is needed */
+	proc transpose 
+		data= _&CLUST
+		out= &CLUST (DROP =_NAME_  _LABEL_ );
+	run;
+
+	/* dist t행렬 생성 */
 	PROC DISTANCE REPLACE 
 				  SHAPE = SQUARE 
 				  DATA   = &CLUST
@@ -16,7 +22,7 @@
 		 VAR ANOMINAL(_ALL_);
 	RUN;
 
-	/* 대칭행렬 복사로 유사도 매트릭스의 Null값 제거 */
+	/* dist 매트릭스의 Missing Value 값 제거 */
 	PROC IML;
 		USE  WORK._JACCARD;
 		READ ALL INTO _UsrSimity;
@@ -31,7 +37,7 @@
 		CREATE JACCARD FROM _UsrSimity;
 		APPEND FROM _UsrSimity;
 		CLOSE  JACCARD;
-	RUN; 
+	RUN;
 
 	/* jaccard행렬 내보내기 */
 	PROC EXPORT DATA = JACCARD
@@ -40,10 +46,16 @@
 	RUN;
 
 	/* training 구매행렬 불러오기 */
-	PROC IMPORT OUT = &TRAINING
+	PROC IMPORT OUT = _&TRAINING
 				DATAFILE = "&FOLDERNAME\&TRAINING"
 				DBMS = SAV REPLACE;
 	RUN;
+
+	/* 행렬 전치 , test is needed */
+	proc transpose 
+		data= _&TRAINING
+		out= &TRAINING (DROP =_NAME_  _LABEL_ );
+	run;
 
 	/* 선호도 매트릭스 = 유사도 매트릭스*구매 매트릭스 */
 	PROC IML;
@@ -55,16 +67,10 @@
 
 		_Result = _Userbasedsimilarity *_UserBased;
 
-		CREATE _UserDist FROM _Result;
+		CREATE UserDist FROM _Result;
 		APPEND FROM _Result;
-		CLOSE  _UserDist;
+		CLOSE  UserDist;
 	RUN;
-
-	/* 행렬 전치 */
-	proc transpose 
-		data=_UserDist
-		out=userDist (DROP =_NAME_  _LABEL_ );
-	run;
 
 	/* 선호도행렬 내보내기 */
 	PROC EXPORT DATA = UserDist
@@ -81,4 +87,5 @@
 %MEND;
 
 /* 최종 실행 문장, (시나리오 폴더 주소, 군집 시작 번호, 군집 끝 번호)를 넣고 실행하면 됨 */
-%PrferMacroRepeat(F:\temp\Lpoint\scenario\s_019, 5, 5);
+%PrferMacroRepeat(F:\temp\Lpoint\scenario\s_013, 1, 3);
+
