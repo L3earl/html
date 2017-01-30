@@ -16,7 +16,7 @@ library(xlsx)
 max.number <- 100
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 29
+scenarioNum <- 48
 
 # 작업 중간에 나오는 데이터가 저장된 폴더의 주소를 입력하세요
 dir.data <- 'F:/temp/Lpoint/scenario'
@@ -101,7 +101,7 @@ product.name.code <- filter(product[,c(4,6)])
 colnames(product.name.code) <- c('productCode', 'productName')
 remove(product)
 
-### import product category3 name and code 
+### import product category3 name and code 상품개수가 줄어들면 추가로 해야 하는 부분임 
 temp <- import(paste0(dir.lpoint, dir.scenario, '/product_1.csv'))
 colnames(temp) <- 'productCode'
 product.name.code <- merge(product.name.code, temp, by = "productCode")
@@ -244,7 +244,7 @@ for(i in 1:length(marking.recommend)){
 # 유저별로 실제로 산 아이템과 안 산 아이템을 구별해주는 marking.recommend를 excel 파일로 export
 system.time({
   for(i in 1:length(marking.recommend)){
-    temp.text <- paste0('export(marking.recommend[[', i, ']], "', dir.result, '/markingRecommend', i, '.csv"
+    temp.text <- paste0('export(marking.recommend[[', i, ']], "', dir.result, '/markingRecommend', scenarioNum, '_', i, '.csv"
                         , col.names=TRUE, row.names=TRUE)')
     eval(parse(text=temp.text))
   }
@@ -334,7 +334,7 @@ eval(parse(text = temp.text))
 remove(temp.text)
 
 # excel 파일로 export
-temp.text <- paste0('write.xlsx(clust.overall.accuracy, file="', dir.result, '/accuracy.xlsx"'
+temp.text <- paste0('write.xlsx(clust.overall.accuracy, file="', dir.result, '/accuracy', scenarioNum, '.xlsx"'
                       , ', sheetName= "overall", col.names=TRUE, row.names=TRUE, append=FALSE)')
 eval(parse(text=temp.text))
 remove(temp.text)
@@ -371,7 +371,7 @@ eval(parse(text = temp.text))
 remove(temp.text)
 
 # excel 파일로 export
-temp.text <- paste0('export(user.accuracy,"', dir.result, '/userAccuracy.csv", col.names=TRUE, row.names=TRUE)')
+temp.text <- paste0('export(user.accuracy,"', dir.result, '/userAccuracy', scenarioNum, '.csv", col.names=TRUE, row.names=TRUE)')
 eval(parse(text=temp.text))
 remove(temp.text)
 

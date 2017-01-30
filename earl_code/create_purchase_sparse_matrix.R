@@ -11,7 +11,7 @@ library(foreach)
 library(foreign)
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 29
+scenarioNum <- 48
 
 # 기간 개수 입력
 periodNum <- 3
@@ -55,9 +55,9 @@ product <- as.character(unmatrix(product.category3, byrow = TRUE))
 ### import 아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함
 product.category3 <- import(paste0(dir.lpoint, dir.scenario, '/product_1.csv'))
 product <- as.character(unmatrix(product.category3, byrow = TRUE))
-colnames(product) <- 'category3code'
+colnames(product.category3) <- 'category3code'
 
-# make frame of purchase matrix (list type)
+# make frame of purchase matrix (list type) <= 자꾸 빼먹고 지나감.. 코드 정리 할 것
 make.frame <- function(u_id, p_id) {
     result <-  matrix(0, nrow = nrow(u_id), ncol = length(p_id)
                       , dimnames = list(u_id[,1],p_id))
@@ -67,34 +67,52 @@ make.frame <- function(u_id, p_id) {
 purchase.matrix.frame <- lapply(clust.userID.list, make.frame, p_id = product)
 
 # 다 쓴 내용 정리
-remove(product.category3)
+# remove(product.category3)
 # remove(product)
 
-# import purchase data +++++++(아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함)
+# 골라낸 상품
 t.purchase <- fread("F:/googledrive/L.point 빅데이터/제3회 Big Data Competition-개인화상품추천/제3회 Big Data Competition-분석용데이터-02.구매상품TR.txt")
-# purchase <- merge(t.purchase, product, by = "productID") #arrange is needed?
-period.1 <- filter(purchase[,c(6,5)])
-period.2 <- filter(purchase[,c(6,5)], purchase[,8] > 20150131 | purchase[,8] < 20150101)
-period.3 <- filter(purchase[,c(6,5)], purchase[,8] > 20141231 & purchase[,8] < 20150201)
+colnames(t.purchase) <- c('alliance', 'receiptCode', 'category1code', 'category2code' , 'category3code', 'userID', 'storeCode', 'date', 'time', 'amount')
+purchase <- merge(t.purchase, product.category3, by = "category3code") 
+
+# original date
+period.1 <- filter(purchase[,c('userID','category3code')])
+period.2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150131 | purchase[,'date'] < 20150101)
+period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 remove(purchase)
 gc()
+
+
+# winter date
+temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] < 20140301)
+temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141131 & purchase[,'date'] < 20150101)
+temp.filter3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150131 & purchase[,'date'] < 20150301)
+temp.filter4 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20151131)
+period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
+period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
+period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
+#
+
+# summer date
+temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20140531 & purchase[,'date'] < 20140901)
+temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150531 & purchase[,'date'] < 20150901)
+period.1 <- rbind(temp.filter1,temp.filter2)
+period.2 <- rbind(temp.filter1,temp.filter2)
+period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
+#
 
 period.1$num <- 1
 period.2$num <- 1
 period.3$num <- 1
 
-colnames(period.1) <- c('userID', 'category3code', 'num')
-colnames(period.2) <- c('userID', 'category3code', 'num')
-colnames(period.3) <- c('userID', 'category3code', 'num')
-
 t_period.1 <- aggregate(num ~ userID+category3code, period.1, sum)
 t_period.2 <- aggregate(num ~ userID+category3code, period.2, sum)
 t_period.3 <- aggregate(num ~ userID+category3code, period.3, sum)
 
-receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 3))
-receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 3))
+receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 5))
+receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 5))
 receipt.period.3 <- distinct(filter(t_period.3[,c(1,2)], t_period.3[,3] >= 1))
-#View(receipt.period.1)
+
 remove(period.1)
 remove(period.2)
 remove(period.3)
@@ -103,7 +121,7 @@ remove(t_period.2)
 remove(t_period.3)
 gc()
 
-##
+### 상품 전체
 t.sorted.receipt <- import(paste0(dir.lpoint, '/common/sortedreceipt.sav'))
 sorted.receipt <- merge(t.sorted.receipt, product, by = "category3code")
 
@@ -118,9 +136,16 @@ receipt.period.3 <- distinct(filter(sorted.receipt[,c(1,2)]
 temp.filter1 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] < 20140301)
 temp.filter2 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20141131 & sorted.receipt[,3] < 20150101)
 temp.filter3 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20150131 & sorted.receipt[,3] < 20150301)
-temp.filter4 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20151131)
+temp.filter4 <- filster(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20151131)
 receipt.period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
 receipt.period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
+
+# summer date
+temp.filter1 <- filter(sorted.receipt[,c('userID','category3code')], sorted.receipt[,'date'] > 20140531 & purchase[,'date'] < 20140901)
+temp.filter2 <- filter(sorted.receipt[,c('userID','category3code')], sorted.receipt[,'date'] > 20150531 & purchase[,'date'] < 20150901)
+receipt.period.1 <- rbind(temp.filter1,temp.filter2)
+receipt.period.2 <- rbind(temp.filter1,temp.filter2)
+
 
 remove(temp.filter1)
 remove(temp.filter2)
@@ -133,6 +158,12 @@ gc()
 remove(t.sorted.receipt)
 remove(sorted.receipt)
 gc()
+
+##### 기온 관련 구매 데이터 import, temperature date
+receipt.period.1 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature.sav')) 
+receipt.period.2 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature.sav'))
+period.1 <- merge(receipt.period.1, product.category3, by = "category3code") 
+period.2 <- merge(receipt.period.2, product.category3, by = "category3code") 
 
 # merge clust UserId and receipt each period
 merge.receipt.clust <- function(clust, receipt){
