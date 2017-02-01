@@ -16,7 +16,7 @@ library(xlsx)
 max.number <- 100
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 48
+scenarioNum <- 52
 
 # 작업 중간에 나오는 데이터가 저장된 폴더의 주소를 입력하세요
 dir.data <- 'F:/temp/Lpoint/scenario'
@@ -59,23 +59,48 @@ user.clust.num <- length(preference)
 max.axis.search <- function(prefer, max.number){  
   
   # 병렬처리 foreach문, 내부의 실행 결과를 data.table 형태로 final에 rbind 시킨다.
-  result <- foreach(i = 1:length(prefer),.packages = c("foreach")) %do% {
+  result <- foreach(i = 1:length(prefer),.packages = c("foreach", 'dplyr')) %do% {
+    #temp0 <- prefer[[i]]
+    #temp <- mutate(temp0, average = rowSums(temp0))
     temp <- prefer[[i]]
     temp$productAxis <- c(1:nrow(prefer[[i]]))
     
-    foreach(j = 1:ncol(prefer[[i]]),.combine="rbind",.packages = c("dplyr")) %dopar% {
+    temp.dtfm <- foreach(j = 1:ncol(prefer[[i]]),.combine="rbind",.packages = c("dplyr")) %dopar% {
       temp2 <- select(temp, j, ncol(temp))
       #if(sum(temp2[,1]) == 0){
       #  for(k in 1:nrow(temp2)){
-      #    temp2[k,1] <- sum(prefer[[i]][k,])/ncol(prefer[[i]])
+      #    temp2[k,1] <- temp[k,'average']
       #  }
       #}
       temp3 <- arrange(temp2, desc(temp2[,1]))
       temp4 <- temp3[c(1:max.number),2]
       return(temp4)
     }
+    
+    temp.len <- ncol(temp.dtfm)
+    temp5 <- apply(temp.dtfm, 2, Modef)
+    
+    for(k in 1:nrow(temp.dtfm)){
+      #temp5 <- data.frame(matrix(0, ncol = temp.len, nrow = 1))
+      #for(s in 1:temp.len){
+      #  temp5[1,s] <- mode(temp.dtfm[,s])
+      #}
+            
+      if(sum(temp.dtfm[k,]) == sum(c(1:temp.len))){
+        temp.dtfm[k,] <- temp5
+      #  temp.dtfm[k,] <- NA
+      }
+    }
+    
+    return(temp.dtfm)
   }
   return(result)
+}
+
+# mode function
+Modef <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
 }
 
 # 함수 실행
@@ -91,6 +116,12 @@ system.time({
   # cluster stop
   stopCluster(cl)
 })
+
+for(i in 1:length(recommend.item.axis)){
+  temp <- sum(is.na(recommend.item.axis[[i]])/ncol(recommend.item.axis[[i]]))
+  print(temp)
+}
+View(recommend.item.axis[[1]])
 
 # 다 쓴 것 메모리에서 삭제
 remove(preference)

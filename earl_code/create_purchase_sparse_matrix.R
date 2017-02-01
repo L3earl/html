@@ -1,4 +1,3 @@
-
 # 라이브러리
 library(rio) 
 library(gdata) 
@@ -11,7 +10,7 @@ library(foreach)
 library(foreign)
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 48
+scenarioNum <- 57
 
 # 기간 개수 입력
 periodNum <- 3
@@ -101,6 +100,16 @@ period.2 <- rbind(temp.filter1,temp.filter2)
 period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 #
 
+# summer date2
+temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20140531 & purchase[,'date'] < 20140901)
+temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150531 & purchase[,'date'] < 20150701)
+temp.filter3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150731 & purchase[,'date'] < 20150901)
+period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3)
+period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3)
+period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150631 & purchase[,'date'] < 20150801)
+#
+
+
 period.1$num <- 1
 period.2$num <- 1
 period.3$num <- 1
@@ -109,8 +118,8 @@ t_period.1 <- aggregate(num ~ userID+category3code, period.1, sum)
 t_period.2 <- aggregate(num ~ userID+category3code, period.2, sum)
 t_period.3 <- aggregate(num ~ userID+category3code, period.3, sum)
 
-receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 5))
-receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 5))
+receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 7))
+receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 1))
 receipt.period.3 <- distinct(filter(t_period.3[,c(1,2)], t_period.3[,3] >= 1))
 
 remove(period.1)
@@ -124,6 +133,11 @@ gc()
 ### 상품 전체
 t.sorted.receipt <- import(paste0(dir.lpoint, '/common/sortedreceipt.sav'))
 sorted.receipt <- merge(t.sorted.receipt, product, by = "category3code")
+
+receipt.period.1 <- period.1
+receipt.period.2 <- period.2
+receipt.period.3 <- period.3
+
 
 # saperate purchase data as each period (기간이 바뀔때마다 변경되는 부분)
 receipt.period.1 <- distinct(filter(sorted.receipt[,c(1,2)]))
