@@ -16,7 +16,7 @@ library(xlsx)
 max.number <- 100
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 52
+scenarioNum <- 60
 
 # 작업 중간에 나오는 데이터가 저장된 폴더의 주소를 입력하세요
 dir.data <- 'F:/temp/Lpoint/scenario'
@@ -60,35 +60,21 @@ max.axis.search <- function(prefer, max.number){
   
   # 병렬처리 foreach문, 내부의 실행 결과를 data.table 형태로 final에 rbind 시킨다.
   result <- foreach(i = 1:length(prefer),.packages = c("foreach", 'dplyr')) %do% {
-    #temp0 <- prefer[[i]]
-    #temp <- mutate(temp0, average = rowSums(temp0))
     temp <- prefer[[i]]
     temp$productAxis <- c(1:nrow(prefer[[i]]))
     
     temp.dtfm <- foreach(j = 1:ncol(prefer[[i]]),.combine="rbind",.packages = c("dplyr")) %dopar% {
       temp2 <- select(temp, j, ncol(temp))
-      #if(sum(temp2[,1]) == 0){
-      #  for(k in 1:nrow(temp2)){
-      #    temp2[k,1] <- temp[k,'average']
-      #  }
-      #}
       temp3 <- arrange(temp2, desc(temp2[,1]))
       temp4 <- temp3[c(1:max.number),2]
       return(temp4)
     }
     
-    temp.len <- ncol(temp.dtfm)
     temp5 <- apply(temp.dtfm, 2, Modef)
     
     for(k in 1:nrow(temp.dtfm)){
-      #temp5 <- data.frame(matrix(0, ncol = temp.len, nrow = 1))
-      #for(s in 1:temp.len){
-      #  temp5[1,s] <- mode(temp.dtfm[,s])
-      #}
-            
-      if(sum(temp.dtfm[k,]) == sum(c(1:temp.len))){
+      if(sum(temp.dtfm[k,]) == sum(c(1:max.number))){
         temp.dtfm[k,] <- temp5
-      #  temp.dtfm[k,] <- NA
       }
     }
     
@@ -117,12 +103,6 @@ system.time({
   stopCluster(cl)
 })
 
-for(i in 1:length(recommend.item.axis)){
-  temp <- sum(is.na(recommend.item.axis[[i]])/ncol(recommend.item.axis[[i]]))
-  print(temp)
-}
-View(recommend.item.axis[[1]])
-
 # 다 쓴 것 메모리에서 삭제
 remove(preference)
 
@@ -132,7 +112,7 @@ product.name.code <- filter(product[,c(4,6)])
 colnames(product.name.code) <- c('productCode', 'productName')
 remove(product)
 
-### import product category3 name and code 상품개수가 줄어들면 추가로 해야 하는 부분임 
+# import product category3 name and code 상품개수가 줄어들면 추가로 해야 하는 부분임 
 temp <- import(paste0(dir.lpoint, dir.scenario, '/product_1.csv'))
 colnames(temp) <- 'productCode'
 product.name.code <- merge(product.name.code, temp, by = "productCode")
@@ -172,6 +152,15 @@ system.time({
 # 다 쓴 것 메모리에서 삭제
 remove(product.name.code)
 
+# export name, code list as matrix
+for(i in 1:length(suggest.item)){
+  suggest.item[[i]]$userID <- clust.userID.list[[i]][,1]
+}
+
+suggest.item.matrix <- arrange(rbindlist(suggest.item), userID)
+export(suggest.item.matrix[,c(201, 1:100)], paste0(dir.result, '/suggest.item.name.csv'))
+export(suggest.item.matrix[,c(201, 101:200)], paste0(dir.result, '/suggest.item.code.csv'))
+
 # 구매 희소 행렬을 import하여 list로 반환
 read.test.data <- function(scenarioNum){
   purchase.name <- mixedsort(dir(dir.data, pattern = "purchaseSparse3"))
@@ -183,18 +172,19 @@ purchase <- read.test.data(scenarioNum)
 
 # Test기간동안의 추천 아이템의 좌표를 구매 희소 행렬에서 찾아서 1의 개수를 반환하는 루틴을 모든 유저만큼 반복
 check.accuracy <- function(recommend, purchase, max.number){
-  temp.dtfm <- data.frame(matrix(NA, ncol = 1, nrow = 1))
-  x <- FALSE
+  temp.dtfm <- data.frame(matrix(FALSE, ncol = 1, nrow = 1))
+  #x <- FALSE
   
   accuracy <- foreach(i = 1:length(recommend),.packages = c("foreach")) %dopar% {
     foreach(j = 1:nrow(recommend[[i]]),.combine="rbind",.packages=c("foreach")) %do% {
       foreach(k = 1:max.number,.combine = "cbind") %do% {
+        temp.dtfm[1,1] <- FALSE
         if(purchase[[i]][j,recommend[[i]][j,k]] == 1){
-          x <- TRUE
-        }else{
-          x <- FALSE
-        }
-        temp.dtfm[1,1] <- x
+          temp.dtfm[1,1] <- TRUE
+        }#else{
+        #  x <- FALSE
+        #}
+        #temp.dtfm[1,1] <- x
         return(temp.dtfm)
       }
     }
@@ -405,14 +395,6 @@ remove(temp.text)
 temp.text <- paste0('export(user.accuracy,"', dir.result, '/userAccuracy', scenarioNum, '.csv", col.names=TRUE, row.names=TRUE)')
 eval(parse(text=temp.text))
 remove(temp.text)
-
-#system.time({
-#  temp.text <- paste0('write.xlsx(user.accuracy, file="', dir.result, '/accuracy.xlsx"'
-#                      , ', sheetName= "user", col.names=TRUE, row.names=TRUE, append=TRUE)')
-#  eval(parse(text=temp.text))
-#  remove(temp.text)
-#  java.garbege.collection()
-#})
 
 # 다 쓴 것 메모리에서 삭제
 remove(user.accuracy)

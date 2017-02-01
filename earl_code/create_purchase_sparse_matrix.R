@@ -10,7 +10,7 @@ library(foreach)
 library(foreign)
 
 # 시나리오 넘버를 입력하세요
-scenarioNum <- 57
+scenarioNum <- 61
 
 # 기간 개수 입력
 periodNum <- 3
@@ -48,15 +48,11 @@ for(i in 1:length(clust.userID.list)){
 user.clust.num <- length(clust.userID.list)
 
 # import product id, make character vector 
-product.category3 <- import(paste0(dir.lpoint, '/common/productCategory3code.sav'))
-product <- as.character(unmatrix(product.category3, byrow = TRUE))
-
-### import 아이템 개수나 순서가 바뀌면 코드가 바뀌어야 함
 product.category3 <- import(paste0(dir.lpoint, dir.scenario, '/product_1.csv'))
 product <- as.character(unmatrix(product.category3, byrow = TRUE))
 colnames(product.category3) <- 'category3code'
 
-# make frame of purchase matrix (list type) <= 자꾸 빼먹고 지나감.. 코드 정리 할 것
+# make frame of purchase matrix list
 make.frame <- function(u_id, p_id) {
     result <-  matrix(0, nrow = nrow(u_id), ncol = length(p_id)
                       , dimnames = list(u_id[,1],p_id))
@@ -65,10 +61,6 @@ make.frame <- function(u_id, p_id) {
 
 purchase.matrix.frame <- lapply(clust.userID.list, make.frame, p_id = product)
 
-# 다 쓴 내용 정리
-# remove(product.category3)
-# remove(product)
-
 # 골라낸 상품
 t.purchase <- fread("F:/googledrive/L.point 빅데이터/제3회 Big Data Competition-개인화상품추천/제3회 Big Data Competition-분석용데이터-02.구매상품TR.txt")
 colnames(t.purchase) <- c('alliance', 'receiptCode', 'category1code', 'category2code' , 'category3code', 'userID', 'storeCode', 'date', 'time', 'amount')
@@ -76,11 +68,12 @@ purchase <- merge(t.purchase, product.category3, by = "category3code")
 
 # original date
 period.1 <- filter(purchase[,c('userID','category3code')])
+period.2 <- filter(purchase[,c('userID','category3code')])
+period.1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150131 | purchase[,'date'] < 20150101)
 period.2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150131 | purchase[,'date'] < 20150101)
 period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 remove(purchase)
 gc()
-
 
 # winter date
 temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] < 20140301)
@@ -92,24 +85,23 @@ period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
 period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 #
 
-# summer date
-temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20140531 & purchase[,'date'] < 20140901)
-temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150531 & purchase[,'date'] < 20150901)
-period.1 <- rbind(temp.filter1,temp.filter2)
-period.2 <- rbind(temp.filter1,temp.filter2)
+# whole winter date
+temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] < 20140301)
+temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141131 & purchase[,'date'] < 20150301)
+temp.filter3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20151131)
+period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3)
+period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3)
 period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 #
 
-# summer date2
-temp.filter1 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20140531 & purchase[,'date'] < 20140901)
-temp.filter2 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150531 & purchase[,'date'] < 20150701)
-temp.filter3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150731 & purchase[,'date'] < 20150901)
-period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3)
-period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3)
-period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20150631 & purchase[,'date'] < 20150801)
+
+##### 기온 관련 구매 데이터 import, temperature date
+receipt.period.1 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature_1.sav')) 
+receipt.period.2 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature_1.sav'))
+period.1 <- merge(receipt.period.1, product.category3, by = "category3code") 
+period.2 <- merge(receipt.period.2, product.category3, by = "category3code") 
+period.3 <- filter(purchase[,c('userID','category3code')], purchase[,'date'] > 20141231 & purchase[,'date'] < 20150201)
 #
-
-
 period.1$num <- 1
 period.2$num <- 1
 period.3$num <- 1
@@ -117,11 +109,13 @@ period.3$num <- 1
 t_period.1 <- aggregate(num ~ userID+category3code, period.1, sum)
 t_period.2 <- aggregate(num ~ userID+category3code, period.2, sum)
 t_period.3 <- aggregate(num ~ userID+category3code, period.3, sum)
+#
 
-receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 7))
-receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 1))
+receipt.period.1 <- distinct(filter(t_period.1[,c(1,2)], t_period.1[,3] >= 5))
+receipt.period.2 <- distinct(filter(t_period.2[,c(1,2)], t_period.2[,3] >= 5))
 receipt.period.3 <- distinct(filter(t_period.3[,c(1,2)], t_period.3[,3] >= 1))
 
+# 다 쓴 내용 정리
 remove(period.1)
 remove(period.2)
 remove(period.3)
@@ -130,54 +124,6 @@ remove(t_period.2)
 remove(t_period.3)
 gc()
 
-### 상품 전체
-t.sorted.receipt <- import(paste0(dir.lpoint, '/common/sortedreceipt.sav'))
-sorted.receipt <- merge(t.sorted.receipt, product, by = "category3code")
-
-receipt.period.1 <- period.1
-receipt.period.2 <- period.2
-receipt.period.3 <- period.3
-
-
-# saperate purchase data as each period (기간이 바뀔때마다 변경되는 부분)
-receipt.period.1 <- distinct(filter(sorted.receipt[,c(1,2)]))
-receipt.period.2 <- distinct(filter(sorted.receipt[,c(1,2)]
-                                    , sorted.receipt[,3] > 20150131 | sorted.receipt[,3] < 20150101))
-receipt.period.3 <- distinct(filter(sorted.receipt[,c(1,2)]
-                                    , sorted.receipt[,3] > 20141231 & sorted.receipt[,3] < 20150201))
-
-
-temp.filter1 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] < 20140301)
-temp.filter2 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20141131 & sorted.receipt[,3] < 20150101)
-temp.filter3 <- filter(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20150131 & sorted.receipt[,3] < 20150301)
-temp.filter4 <- filster(sorted.receipt[,c(1,2)], sorted.receipt[,3] > 20151131)
-receipt.period.1 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
-receipt.period.2 <- rbind(temp.filter1,temp.filter2,temp.filter3,temp.filter4)
-
-# summer date
-temp.filter1 <- filter(sorted.receipt[,c('userID','category3code')], sorted.receipt[,'date'] > 20140531 & purchase[,'date'] < 20140901)
-temp.filter2 <- filter(sorted.receipt[,c('userID','category3code')], sorted.receipt[,'date'] > 20150531 & purchase[,'date'] < 20150901)
-receipt.period.1 <- rbind(temp.filter1,temp.filter2)
-receipt.period.2 <- rbind(temp.filter1,temp.filter2)
-
-
-remove(temp.filter1)
-remove(temp.filter2)
-remove(temp.filter3)
-remove(temp.filter4)
-gc()
-
-
-# 다 쓴 내용 정리
-remove(t.sorted.receipt)
-remove(sorted.receipt)
-gc()
-
-##### 기온 관련 구매 데이터 import, temperature date
-receipt.period.1 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature.sav')) 
-receipt.period.2 <- import(paste0(dir.lpoint, dir.scenario, '/purchase_by_temperature.sav'))
-period.1 <- merge(receipt.period.1, product.category3, by = "category3code") 
-period.2 <- merge(receipt.period.2, product.category3, by = "category3code") 
 
 # merge clust UserId and receipt each period
 merge.receipt.clust <- function(clust, receipt){
@@ -222,12 +168,9 @@ system.time({
 })
 
 # SAS에서 자카드 계산을 하기 위해 list인 purchase.sparse를 매트릭스로 분할하여 내보내며, colname도 변경
-#temp.colname <- sprintf("COL%1d", c(1:ncol(purchase.sparse.1[[1]])))
 
 for(i in 1:periodNum){ 
   for(j in 1:user.clust.num){
-    #temp.text <- paste0("colnames(purchase.sparse.", i, "[[", j, "]]) <- temp.colname")
-    #eval(parse(text=temp.text))
     temp.text <- paste0('export(purchase.sparse.', i, '[[', j, ']], "', dir.data, '/purchaseSparse', i, '_', j, '.sav")')
     eval(parse(text=temp.text))
   }
